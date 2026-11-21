@@ -44,15 +44,15 @@ stop_fw() {
 echo "== 1. 기본 동작"
 start_fw
 check "PID 출력 (원본 형식 'My PID : n')" log_has "My PID : $FW_PID"
-check "시작 시 채굴기 1개 (스레드 = main+wdt+1 = 3)" test "$(threads)" -eq 3
+check "시작 시 채굴기 1개 (스레드 = main+signal+wdt+1 = 4)" test "$(threads)" -eq 4
 send 'add 3\nshow\n'
 check "add 3 -> 채굴기 4개" log_has "miners=4"
-check "스레드 수 6 (채굴기 4 + 2)" test "$(threads)" -eq 6
+check "스레드 수 7 (채굴기 4 + 3)" test "$(threads)" -eq 7
 send 'del\n'
 check "del -> 가장 오래된 #1 제거" log_has "miner #1 removed (total 3)"
 send 'del 10\nshow\n'
 check "빈 큐에서 del -> 거부 메시지, 비정상 종료 없음" log_has "no miner to remove"
-check "del 후 스레드 2개 (채굴기 0)" test "$(threads)" -eq 2
+check "del 후 스레드 3개 (채굴기 0)" test "$(threads)" -eq 3
 c1=$(grep STATUS "$TMP/fw.log" | tail -1 | sed 's/.*coins=\([0-9]*\).*/\1/')
 send 'add 2\n' "" 1.0
 send 'show\n'
