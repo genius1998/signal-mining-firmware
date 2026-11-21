@@ -51,20 +51,7 @@ Linux 사용자 공간에서 이 인터럽트 역할을 하는 것이 시그널�
 
 ## 2. 구조와 동작 흐름
 
-```mermaid
-flowchart LR
-    U["User App<br/>(user_app)"] -- "sigqueue(SIGRTMIN, 명령 번호)<br/>kill(SIGUSR1/2/TERM)" --> S
-
-    subgraph F["Firmware App (firmware) — 하나의 프로세스"]
-        S["시그널 스레드<br/>sigwaitinfo()"] -- "ev_push()" --> Q[("이벤트 큐<br/>mutex + cond")]
-        Q -- "ev_pop(100ms)" --> M["메인 루프"]
-        M -- "miner_add / miner_del" --> W1["채굴기 #1"]
-        M --> W2["채굴기 #2"]
-        M --> W3["채굴기 #N"]
-        M -. "wdt_kick()" .-> D["워치독 스레드<br/>200ms마다 검사"]
-        D -. "timeout → execv()" .-> F
-    end
-```
+![시스템 구조도](docs/images/architecture.png)
 
 | 구성 | 펌웨어에 비유하면 | 역할 |
 |---|---|---|
