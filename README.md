@@ -95,28 +95,34 @@ Firmware는 `SIGUSR1`, `SIGUSR2`, `SIGTERM`도 받는다. 그래서 셸에서 `k
 ## 4. 어려웠던 문제와 해결 과정
 
 ### A. 채굴기 제거 순서
-처음 만든 채굴기 관리 코드(`docs/troubleshooting/miner_v1_failed.c`)는 `del`을 입력하면 엉뚱한 채굴기가 사라지거나 프로그램이 죽었다. 원인은 `del()`과 `dequeue()`의 순서였다.
+
+![채굴기 제거 순서 버그와 해결](docs/images/del_bug_fix.png)
+
+`del`은 가장 오래된 채굴기, 즉 큐의 맨 앞 `queue[front]`를 멈춰야 한다. 그런데 처음 만든 코드(`docs/troubleshooting/miner_v1_failed.c`)는 `dequeue()`로 `front++`를 먼저 한 뒤 `queue[front]`를 꺼내 취소했다.
 
 ```c
 /* 실패한 버전 */
-int dequeue() {
-    if (front == rear) return -1;
-    front++;                       /* (1) 먼저 front를 옮기고 */
-    return queue[front];           /* (2) 옮긴 칸을 돌려준다 → 가장 오래된 칸이 아님 */
-}
 int del() {
-    dequeue();                     /* front가 이미 다음 칸으로 넘어감, 반환값도 무시 */
-    pthread_cancel(queue[front]);  /* 가장 오래된 채굴기가 아니라 그다음 채굴기를 취소 */
+    dequeue();                         /* front++ 가 먼저 일어남 */
+    pthread_cancel(queue[front]);      /* 이미 한 칸 밀린 자리 → 두 번째 채굴기를 취소 */
     pthread_join(queue[front], NULL);
 }
 ```
 
-`front++`를 먼저 하기 때문에 `del()`이 취소하는 것은 `queue[front]`, 즉 두 번째로 오래된 채굴기다. 가장 오래된 채굴기는 큐에서만 빠지고 스레드는 계속 돌아서, 누구도 취소할 수 없는 채굴기가 남는다.
+그 결과 두 번째로 오래된 채굴기가 취소되고, 정작 가장 오래된 채굴기는 큐에서만 빠진 채 계속 채굴했다. 채굴기가 1개뿐일 때는 비어 있는 칸을 취소하려다 Segmentation fault가 났다.
 
-컴파일 오류(`enqueue()`의 정의되지 않은 `value`)만 최소로 고친 사본으로 직접 실행해 확인했다.
+해결은 `del()` 안에서 `dequeue()`를 마지막 순서로 옮긴 것이다. `queue[front]`를 먼저 꺼내 취소(`pthread_cancel`)하고 종료를 확인(`pthread_join`)한 다음에 `front++` 한다. 큐가 비어 있으면 처음부터 거부한다.
 
-| 상황 | 결과 |
-|---|---|
+```c
+/* 고친 버전 (src/miner.c miner_del(), mutex 처리 생략) */
+miner_t m = queue[front];                                   /* ① 맨 앞 채굴기를 먼저 꺼내고 */
+if (pthread_cancel(m.tid) != 0 || pthread_join(m.tid, NULL) != 0)
+    return -1;                                              /* ② 취소, ③ 종료 확인 */
+front = (front + 1) % MINER_MAX;                            /* ④ 그다음에 front++ */
+size--;
+```
+
+---|---|
 | 채굴기 3개(0, 1, 2번) 뒤 `del` | 0번이 아니라 1번이 취소됨. 0번은 큐에서 빠진 채로 계속 채굴 |
 | 채굴기 1개 뒤 `del` | 취소 대상 `queue[1]`이 한 번도 쓰지 않은 칸(값 0) → `pthread_cancel(0)`에서 Segmentation fault |
 | 채굴기 2개 뒤 `del` 두 번 | 첫 `del`은 1번을 취소, 두 번째 `del`은 빈 칸 `queue[2]`를 취소하려다 Segmentation fault |
