@@ -171,10 +171,6 @@ Ubuntu 22.04 VM에서 실행한 화면이다. 왼쪽은 Firmware App, 오른쪽�
 - `hang`으로 메인 루프를 멈추면 워치독이 kick이 끊긴 것을 감지하고 `RESET`한다.
 - 재시작한 뒤에도 `My PID : 4814`로 PID가 같고(`reset count 1`), 채굴기는 초기 상태인 1개로 돌아간다.
 
-### 통합 테스트
-![통합 테스트 결과](docs/images/result_test.png)
-
-
 ---
 
 ## 6. 배운 점
