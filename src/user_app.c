@@ -2,8 +2,8 @@
  * User App: Firmware App에 시그널로 명령을 보낸다
  *
  *   - 기본: sigqueue(SIGRTMIN, 명령 번호)로 보낸다. 표준 시그널은 연속으로 보내면
- *     합쳐지고(README 4-B), 서로 다른 시그널은 순서가 바뀌기 때문이다(README 4-C).
- *   - -l 옵션: kill()로 SIGUSR1/SIGUSR2/SIGTERM을 보낸다 (4-B 재현용).
+ *     합쳐지고, 서로 다른 시그널은 순서가 바뀌기 때문이다.
+ *   - -l 옵션: kill()로 SIGUSR1/SIGUSR2/SIGTERM을 보낸다 (합쳐짐 재현용).
  *   - 대상이 없어지면(ESRCH) 바로 알리고 종료한다.
  */
 #include <errno.h>
