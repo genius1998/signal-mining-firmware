@@ -141,17 +141,35 @@ size--;
 
 ## 5. 결과
 
-### 기본 동작
-![기본 동작 결과](docs/images/result_normal.png)
+Ubuntu 22.04 VM에서 실행한 화면이다. 왼쪽은 Firmware App, 오른쪽은 User App이다.
 
-- 왼쪽은 Firmware App, 오른쪽은 User App이다. User App의 `add 2`로 채굴기가 3개가 되고, `del`은 가장 오래된 `#1`을 제거한다.
-- `quit`을 받으면 채굴기를 모두 정리한 뒤 `BYE`를 출력하고 종료한다.
+### 1) PID로 연결
+![PID 연결](docs/images/vm_pid.png)
 
-### 워치독 재시작
-![워치독 재시작 결과](docs/images/result_watchdog.png)
+- Firmware App을 실행하면 `My PID : 4814`를 출력하고, User App은 이 PID를 인자로 받아(`./user_app 4814`) 시그널을 보낸다.
 
-- `hang`으로 메인 루프를 멈추면, 워치독이 3초 동안 kick이 없는 것을 감지하고 펌웨어를 다시 실행한다.
-- 재시작한 뒤에도 PID가 같아서, User App을 다시 띄우지 않고 그대로 `show`를 보낼 수 있다.
+### 2) show: 상태 조회
+![show 결과](docs/images/vm_show.png)
+
+- 시작할 때 만든 채굴기 1개가 돌고 있어 `miners=1 coins=174`가 출력된다.
+
+### 3) del: 가장 오래된 채굴기 제거
+![del 결과](docs/images/vm_del.png)
+
+- `del`로 `miner #1`을 제거하면 `miners=0`이 되고, 이후 코인은 더 늘지 않는다(`coins=221`).
+
+### 4) add: 채굴기 추가
+![add 결과](docs/images/vm_add.png)
+
+- `add 5`로 시그널 5개를 연속으로 보내면 5개가 모두 처리되어 `miner #2`\~`#6`이 추가되고, `show`에서 `miners=5`가 확인된다.
+
+### 5) hang: 워치독 재시작
+![hang 결과](docs/images/vm_hang.png)
+
+![워치독 재시작 GIF](docs/images/vm_watchdog.gif)
+
+- `hang`으로 메인 루프를 멈추면 워치독이 kick이 끊긴 것을 감지하고 `RESET`한다.
+- 재시작한 뒤에도 `My PID : 4814`로 PID가 같고(`reset count 1`), 채굴기는 초기 상태인 1개로 돌아간다.
 
 ### 통합 테스트
 ![통합 테스트 결과](docs/images/result_test.png)
