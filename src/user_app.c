@@ -1,13 +1,10 @@
 /*
  * User App: Firmware App에 시그널로 명령을 보낸다
- * 원본: original/hw7_userapp.c (PID를 인자로 받아 1/2/3 입력에 따라 kill)
  *
- * 바뀐 점
- *   - kill(SIGUSR1/SIGUSR2/SIGTERM) 대신 sigqueue(SIGRTMIN, 명령 번호)로 보낸다.
- *     표준 시그널은 연속으로 보내면 합쳐지고(README 4-B), 서로 다른 시그널은
- *     순서가 바뀌기 때문이다(README 4-C). -l 옵션이면 원본처럼 kill()을 쓴다.
- *   - show, add N, del N, hang 명령 추가
- *   - 대상이 없어지면(ESRCH) 바로 알리고 종료
+ *   - 기본: sigqueue(SIGRTMIN, 명령 번호)로 보낸다. 표준 시그널은 연속으로 보내면
+ *     합쳐지고(README 4-B), 서로 다른 시그널은 순서가 바뀌기 때문이다(README 4-C).
+ *   - -l 옵션: kill()로 SIGUSR1/SIGUSR2/SIGTERM을 보낸다 (4-B 재현용).
+ *   - 대상이 없어지면(ESRCH) 바로 알리고 종료한다.
  */
 #include <errno.h>
 #include <signal.h>
@@ -20,7 +17,7 @@
 #include "common.h"
 
 static pid_t target_pid;
-static int   legacy;       /* -l: 원본처럼 SIGUSR1/SIGUSR2를 kill()로 보냄 */
+static int   legacy;       /* -l: SIGUSR1/SIGUSR2/SIGTERM을 kill()로 보냄 */
 
 static int send_cmd(int cmd)
 {

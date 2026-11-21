@@ -1,9 +1,8 @@
 /*
  * 채굴기 스레드 관리
- * 원본: original/miner.c (채굴기 과제)
- * 바뀐 점: 큐를 원형 큐로 바꾸고, 채굴기마다 번호를 붙였다.
- *         큐(front/size)도 mutex로 보호한다. 지금은 메인 루프만 큐를 바꾸지만,
- *         다른 스레드에서 호출해도 깨지지 않게 하려는 것이다.
+ * 채굴기 스레드 ID를 원형 큐에 넣고, 제거는 가장 오래된 것부터 한다.
+ * 큐(front/size)도 mutex로 보호한다. 지금은 메인 루프만 큐를 바꾸지만,
+ * 다른 스레드에서 호출해도 깨지지 않게 하려는 것이다.
  */
 #include <stdio.h>
 #include <pthread.h>
@@ -24,7 +23,7 @@ static int     front = 0;
 static int     size = 0;
 static int     next_id = 1;
 
-/* 채굴기 스레드 함수 (원본과 동일) */
+/* 채굴기 스레드 함수 */
 static void *run(void *arg)
 {
     (void)arg;
@@ -71,7 +70,7 @@ int miner_add(void)
 
 /*
  * 가장 오래된 채굴기 제거.
- * 트러블슈팅에서 고친 순서를 그대로 지킨다:
+ * 초기 버전의 버그(README 4-A)를 고친 순서:
  *   1) queue[front]를 cancel  2) join으로 종료 확인  3) 그 다음에 dequeue
  */
 int miner_del(void)

@@ -43,7 +43,7 @@ stop_fw() {
 
 echo "== 1. 기본 동작"
 start_fw
-check "PID 출력 (원본 형식 'My PID : n')" log_has "My PID : $FW_PID"
+check "PID 출력 ('My PID : n')" log_has "My PID : $FW_PID"
 check "시작 시 채굴기 1개 (스레드 = main+signal+wdt+1 = 4)" test "$(threads)" -eq 4
 send 'add 3\nshow\n'
 check "add 3 -> 채굴기 4개" log_has "miners=4"
@@ -87,14 +87,16 @@ done
 check "kill(SIGUSR1) x100 -> 100개보다 적게 처리 (합쳐짐 재현)" test "$LEG" -lt 100
 check "sigqueue(SIGRTMIN) x100 -> 100개 모두 처리" test "$RT" -eq 100
 
-echo "== 4. 원본 과제7 User App 호환"
-gcc -w -o "$TMP/orig_userapp" original/hw7_userapp.c
+echo "== 4. kill() 방식 (-l) 명령"
 start_fw -n 0
-printf '1\n1\n2\n3\n' | "$TMP/orig_userapp" "$FW_PID" > /dev/null 2>&1 &
-sleep 1
+send '1
+1
+2
+3
+' -l 0.5
 wait "$FW_PID" 2>/dev/null; RC=$?; FW_PID=""
-check "원본 1/2/3 입력 -> SIGUSR1/SIGUSR2/SIGTERM 처리" log_has "SIGUSR2 from pid"
-check "원본 3 -> 정상 종료 (코드 0)" test "$RC" -eq 0
+check "-l 모드 1, 2 -> SIGUSR1, SIGUSR2 처리" test "$(log_count 'SIGUSR1 from pid')" -eq 1 -a "$(log_count 'SIGUSR2 from pid')" -eq 1
+check "-l 모드 3 -> SIGTERM으로 정상 종료 (코드 0)" test "$RC" -eq 0
 
 echo "== 5. 워치독"
 start_fw -t 1000

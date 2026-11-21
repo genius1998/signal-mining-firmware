@@ -5,7 +5,7 @@ User App이 보내는 시그널로 Firmware App 안의 채굴기 스레드를 �
 - Firmware App(`src/firmware.c`): 채굴기 스레드를 큐로 관리하고, 시그널을 명령으로 받아 처리한다. 시그널은 핸들러 대신 전용 스레드가 `sigwaitinfo()`로 받는다.
 - User App(`src/user_app.c`): 펌웨어 PID를 인자로 받아 사용자 입력을 시그널로 바꿔 보낸다. 명령은 실시간 시그널 하나에 명령 번호를 실어 `sigqueue()`로 보낸다.
 - Watchdog(`src/watchdog.c`): 메인 루프가 일정 시간 동안 kick 하지 않으면 timeout으로 보고 펌웨어를 다시 exec 한다.
-- SSAFY에서 따로 낸 두 과제(채굴기, 과제7 시그널 Firmware/User App)를 하나로 합친 것이다. 원본 코드는 `original/`에 그대로 두었고, 원본과 통합하면서 추가한 부분을 [구현 범위](#구현-범위)에 나눠 적었다.
+- 범위는 [구현 범위](#구현-범위)에 정리했다.
 
 | 항목 | 내용 |
 |---|---|
@@ -21,7 +21,7 @@ User App이 보내는 시그널로 Firmware App 안의 채굴기 스레드를 �
 ### 펌웨어와 외부 제어
 임베디드 장치의 펌웨어는 보통 메인 루프 하나가 계속 돌면서 일을 처리하고, 버튼이나 외부 장치의 요청은 인터럽트로 들어온다. 인터럽트 핸들러(ISR)는 짧게 끝내야 하기 때문에, 핸들러는 "무슨 일이 왔다"는 표시만 남기고 실제 처리는 메인 루프가 맡는 구조를 많이 쓴다.
 
-Linux 사용자 공간에서 이 인터럽트 역할을 하는 것이 시그널이다. 과제7은 User App이 `kill()`로 보낸 시그널을 Firmware App이 받아 버튼 입력처럼 처리하는 과제였다. 다만 시그널 핸들러 안에서는 `printf()`나 `pthread_mutex_lock()` 같은 함수를 안전하게 쓸 수 없다(async-signal-safe가 아님). 그래서 이 프로젝트는 핸들러를 쓰지 않고, 시그널을 막아 둔 뒤 전용 스레드가 동기적으로 꺼내 이벤트 큐에 넣는 방식으로 바꿨다.
+Linux 사용자 공간에서 이 인터럽트 역할을 하는 것이 시그널이다. 이 프로젝트는 User App이 보낸 시그널을 Firmware App이 버튼 입력처럼 받아 처리한다. 다만 시그널 핸들러 안에서는 `printf()`나 `pthread_mutex_lock()` 같은 함수를 안전하게 쓸 수 없다(async-signal-safe가 아님). 그래서 핸들러를 쓰지 않고, 시그널을 막아 둔 뒤 전용 스레드가 동기적으로 꺼내 이벤트 큐에 넣는 방식을 택했다.
 
 ### 워치독(WDT)
 펌웨어가 무한 루프나 교착 상태에 빠지면 외부에서 알아챌 방법이 없다. 하드웨어 워치독은 펌웨어가 주기적으로 타이머를 리셋(kick)하지 않으면 보드를 재시작한다. 이 프로젝트는 같은 동작을 스레드로 만들었다. 메인 루프가 kick을 멈추면 워치독 스레드가 감지하고, 보드 리셋 대신 프로세스를 다시 exec 한다.
@@ -30,25 +30,23 @@ Linux 사용자 공간에서 이 인터럽트 역할을 하는 것이 시그널�
 
 | 구현한 것 | 구현하지 않은 것 |
 |---|---|
-| 채굴기 스레드 추가/제거(가장 오래된 것부터)/조회 *(원본: 채굴기 과제)* | 실제 해시 계산 (채굴은 0.1초마다 카운터 +1) |
-| PID 출력, SIGUSR1/SIGUSR2/SIGTERM 수신 *(원본: 과제7 Firmware)* | 시그널 대신 소켓·파이프 같은 다른 IPC |
-| PID 인자로 시그널 전송 *(원본: 과제7 User App)* | 명령 처리 결과를 User App에 돌려주는 응답 채널 |
-| 전용 스레드 `sigwaitinfo()` + 이벤트 큐 *(통합하면서 추가)* | 여러 User App의 권한 구분 |
-| `sigqueue()` + 실시간 시그널 하나로 명령 전달 *(통합하면서 추가)* | 리셋 전 상태(코인 수 등) 보존 |
-| 소프트웨어 워치독, timeout 시 `execv()` 재시작 *(통합하면서 추가)* | 하드웨어 WDT(`/dev/watchdog`) 연동 |
-| 정상 종료 시 모든 스레드 cancel/join *(통합하면서 추가)* | |
-| 통합 테스트 스크립트 24개 항목 *(통합하면서 추가)* | |
-
-과제7 Firmware 원본은 메인 루프에서 A\~Z를 출력하는 화면 동작이 있었는데, 채굴기 로그와 섞여서 통합 버전에서는 뺐다. 그 자리는 이벤트 처리와 워치독 kick이 대신한다.
+| 채굴기 스레드 추가/제거(가장 오래된 것부터)/조회 | 실제 해시 계산 (채굴은 0.1초마다 카운터 +1) |
+| PID 출력, SIGUSR1/SIGUSR2/SIGTERM/SIGINT 수신 | 시그널 대신 소켓·파이프 같은 다른 IPC |
+| PID 인자로 시그널을 보내는 User App | 명령 처리 결과를 User App에 돌려주는 응답 채널 |
+| 전용 스레드 `sigwaitinfo()` + 이벤트 큐 | 여러 User App의 권한 구분 |
+| `sigqueue()` + 실시간 시그널 하나로 명령 전달 | 리셋 전 상태(코인 수 등) 보존 |
+| 소프트웨어 워치독, timeout 시 `execv()` 재시작 | 하드웨어 WDT(`/dev/watchdog`) 연동 |
+| 정상 종료 시 모든 스레드 cancel/join | |
+| 통합 테스트 스크립트 24개 항목 | |
 
 ---
 
 ## 1. 내가 맡은 역할
 
-1. 원본 두 과제 작성: 채굴기 스레드 관리(`original/miner.c`), 시그널 Firmware/User App(`original/hw7_*.c`)
-2. 채굴기 과제의 트러블슈팅: 실패한 버전(`original/miner_troubleshooting.c`)의 원인을 찾아 cancel → join → dequeue 순서로 고침 ([4-A](#a-채굴기-제거-순서-원본-과제))
-3. 통합 구조 설계: 시그널 스레드 → 이벤트 큐 → 메인 루프 → 채굴기 스레드, 그리고 메인 루프를 감시하는 워치독
-4. 시그널 프로토콜 변경: 표준 시그널의 합쳐짐과 순서 바뀜을 재현하고 `sigqueue()` 방식으로 바꿈 ([4-B](#b-같은-시그널이-합쳐져-명령이-사라짐), [4-C](#c-서로-다른-시그널의-순서가-바뀜))
+1. 구조 설계: 시그널 스레드 → 이벤트 큐 → 메인 루프 → 채굴기 스레드, 그리고 메인 루프를 감시하는 워치독
+2. 채굴기 관리 구현: 스레드 추가와 가장 오래된 것부터 제거. 초기 버전(`docs/troubleshooting/miner_v1_failed.c`)의 원인을 찾아 cancel → join → dequeue 순서로 고침 ([4-A](#a-채굴기-제거-순서))
+3. Firmware App, User App 구현: PID 기반 시그널 송수신, 명령 프로토콜
+4. 시그널 프로토콜 개선: 표준 시그널의 합쳐짐과 순서 바뀜을 재현하고 `sigqueue()` 방식으로 바꿈 ([4-B](#b-같은-시그널이-합쳐져-명령이-사라짐), [4-C](#c-서로-다른-시그널의-순서가-바뀜))
 5. 워치독과 재시작, 정상 종료 순서 구현
 6. 통합 테스트 스크립트(`tests/test_integration.sh`) 작성
 
@@ -96,7 +94,7 @@ User App에 add 입력
 
 ### 시그널 프로토콜 (`src/common.h`)
 
-| User App 입력 | 보내는 시그널 (기본) | `-l` 모드 (원본 방식) | Firmware 동작 |
+| User App 입력 | 보내는 시그널 (기본) | `-l` 모드 (`kill()` 방식) | Firmware 동작 |
 |---|---|---|---|
 | `1`, `add [N]` | `SIGRTMIN` + `CMD_ADD` | `SIGUSR1` | 채굴기 N개 추가 |
 | `2`, `del [N]` | `SIGRTMIN` + `CMD_DEL` | `SIGUSR2` | 가장 오래된 채굴기 N개 제거 |
@@ -105,7 +103,7 @@ User App에 add 입력
 | `3`, `quit` | `SIGRTMIN` + `CMD_QUIT` | `SIGTERM` | 정상 종료 |
 | `exit` | 보내지 않음 | - | User App만 종료 |
 
-Firmware는 원본 과제의 `SIGUSR1`, `SIGUSR2`, `SIGTERM`을 지금도 그대로 받는다. 그래서 원본 과제7 User App(`original/hw7_userapp.c`)으로도 1/2/3 명령을 보낼 수 있고, 셸에서 `kill -TERM <pid>`나 Ctrl+C(`SIGINT`)로 끝내도 같은 정상 종료 경로를 탄다.
+Firmware는 `SIGUSR1`, `SIGUSR2`, `SIGTERM`도 받는다. 그래서 셸에서 `kill -USR1 <pid>`로 채굴기를 추가할 수 있고, `kill -TERM <pid>`나 Ctrl+C(`SIGINT`)로 끝내도 같은 정상 종료 경로를 탄다.
 
 ### 시그널 받기: 핸들러 대신 전용 스레드
 ```c
@@ -121,7 +119,7 @@ ev_push((ev_t)e);
 ```
 
 - 마스크를 스레드 생성 **전에** 거는 것이 중요하다. 채굴기 스레드 하나라도 시그널이 열려 있으면 커널이 그 스레드로 시그널을 보내고, 핸들러가 없으므로 기본 동작(프로세스 종료)이 일어난다.
-- 원본 과제7은 `signal()`로 등록한 핸들러 안에서 `printf()`를 불렀다. 단일 스레드에 출력만 하는 과제에서는 문제가 드러나지 않았지만, 채굴기 스레드와 mutex가 함께 있는 구조에서는 핸들러가 lock을 잡은 스레드를 끊고 들어올 수 있어서 이 방식으로 바꿨다.
+- `signal()`로 핸들러를 등록하고 그 안에서 `printf()`를 부르는 방식은 단일 스레드에서 출력만 할 때는 문제가 드러나지 않는다. 하지만 채굴기 스레드와 mutex가 함께 있는 구조에서는 핸들러가 lock을 잡은 스레드를 끊고 들어와 같은 lock을 다시 잡으면 교착 상태가 된다. 핸들러에서는 `pthread_create()`, `pthread_join()`도 쓸 수 없다.
 - `siginfo_t`의 `si_pid`로 누가 보냈는지도 로그에 남긴다.
 
 ### 채굴기 관리 (`src/miner.c`)
@@ -133,7 +131,7 @@ ev_push((ev_t)e);
 | `miner_del_all()` | 큐가 빌 때까지 `miner_del()` 반복 |
 | `miner_count()`, `miner_coins()` | 큐 크기, 코인 수를 각각 mutex 안에서 읽는다 |
 
-- 원본 채굴기 과제의 `run()`, cancel → join → dequeue 순서를 그대로 썼다. 원본은 큐가 비면 `front`, `rear`를 0으로 되돌리는 선형 큐였는데, 통합 버전은 `front`와 `size`를 쓰는 원형 큐로 바꿔서 추가·제거를 반복해도 앞쪽 칸이 버려지지 않게 했다.
+- 제거는 cancel → join → dequeue 순서다 ([4-A](#a-채굴기-제거-순서)). 큐는 `front`와 `size`를 쓰는 원형 큐라서 추가·제거를 반복해도 앞쪽 칸이 버려지지 않는다.
 - 채굴기 스레드의 취소 지점은 `usleep()` 하나다. `pthread_mutex_lock()`은 취소 지점이 아니라서, `cnt`를 올리는 도중(lock을 잡은 상태)에 취소되는 일이 없다.
 
 ### 워치독 (`src/watchdog.c`)
@@ -158,14 +156,14 @@ if (elapsed > wdt_timeout_ms)
 3. 시그널 스레드 join
 4. 최종 코인 수를 출력하고 `return 0`
 
-원본 과제7은 `SIGTERM` 핸들러에서 바로 `_exit(0)`을 불러 스레드 정리 없이 끝났다.
+`SIGTERM` 핸들러에서 바로 `_exit(0)`을 부르면 간단하지만, 채굴기 스레드를 join할 기회 없이 끝난다. 그래서 종료도 다른 명령과 같은 이벤트로 처리한다.
 
 ---
 
 ## 4. 어려웠던 문제와 해결 과정
 
-### A. 채굴기 제거 순서 (원본 과제)
-처음 만든 채굴기(`original/miner_troubleshooting.c`)는 `del`을 입력하면 엉뚱한 채굴기가 사라지거나 프로그램이 죽었다. 원인은 `del()`과 `dequeue()`의 순서였다.
+### A. 채굴기 제거 순서
+처음 만든 채굴기 관리 코드(`docs/troubleshooting/miner_v1_failed.c`)는 `del`을 입력하면 엉뚱한 채굴기가 사라지거나 프로그램이 죽었다. 원인은 `del()`과 `dequeue()`의 순서였다.
 
 ```c
 /* 실패한 버전 */
@@ -194,18 +192,21 @@ int del() {
 
 이 밖에도 `add()`는 `rear == SIZE` 검사보다 먼저 `pthread_create(&queue[rear], ...)`를 호출하기 때문에, 100개를 넘게 추가하면 배열 밖에 스레드 ID를 쓴다.
 
-해결은 순서를 바꾸는 것이었다. `queue[front]`를 먼저 cancel 하고, join으로 종료를 확인한 다음, 둘 다 성공했을 때만 dequeue 한다. 이 순서는 통합 버전의 `miner_del()`에도 그대로 들어 있다.
+해결은 순서를 바꾸는 것이었다. `queue[front]`를 먼저 cancel 하고, join으로 종료를 확인한 다음, 둘 다 성공했을 때만 dequeue 한다. 이 순서가 지금의 `miner_del()`이다.
 
 ```c
-/* 고친 버전 (original/miner.c) */
-pthread_t t = queue[front];
-if (pthread_cancel(t) != 0) { ...; return; }
-if (pthread_join(t, NULL) != 0) { ...; return; }
-dequeue(&removed);                 /* 종료가 확인된 스레드만 큐에서 뺀다 */
+/* src/miner.c miner_del() */
+miner_t m = queue[front];
+if (pthread_cancel(m.tid) != 0 || pthread_join(m.tid, NULL) != 0) {
+    pthread_mutex_unlock(&qlock);
+    return -1;
+}
+front = (front + 1) % MINER_MAX;   /* 종료가 확인된 스레드만 큐에서 뺀다 */
+size--;
 ```
 
 ### B. 같은 시그널이 합쳐져 명령이 사라짐
-두 과제를 합친 뒤 `add 20`처럼 같은 명령을 여러 번 보내 보니, `SIGUSR1`을 20번 보냈는데 채굴기는 1개만 늘었다. 표준 시그널은 커널이 "도착했다"는 비트 하나로만 기억해서, 처리되기 전에 같은 시그널이 또 오면 하나로 합쳐진다. 과제7처럼 사람이 한 번씩 입력할 때는 처리 속도가 충분히 빨라 드러나지 않던 문제다.
+시그널 처리를 처음 붙였을 때는 User App이 `kill()`로 `SIGUSR1`(추가), `SIGUSR2`(제거), `SIGTERM`(종료)을 보냈다. `add 20`처럼 같은 명령을 여러 번 보내 보니, `SIGUSR1`을 20번 보냈는데 채굴기는 1개만 늘었다. 표준 시그널은 커널이 "도착했다"는 비트 하나로만 기억해서, 처리되기 전에 같은 시그널이 또 오면 하나로 합쳐진다. 사람이 한 번씩 입력할 때는 처리 속도가 충분히 빨라 드러나지 않던 문제다.
 
 | 방식 | 보낸 횟수 | 처리된 횟수 (5회 반복 합계) |
 |---|---|---|
@@ -260,7 +261,7 @@ make test        # 또는 sh tests/test_integration.sh
 | 종료 전 명령 | `add 3` 직후 `quit` | 3개 모두 추가된 뒤 종료 | PASS |
 | 합쳐짐 재현 | `-l` 모드 `add 20` × 5회 | 100보다 적게 처리 (실제 5) | PASS |
 | 합쳐짐 해결 | 기본 모드 `add 20` × 5회 | 100개 모두 처리 | PASS |
-| 원본 호환 | `original/hw7_userapp.c`로 `1`, `1`, `2`, `3` | SIGUSR1/SIGUSR2 처리, SIGTERM으로 종료 코드 0 | PASS |
+| `kill()` 방식 | `-l` 모드로 `1`, `2`, `3` | SIGUSR1/SIGUSR2 처리, SIGTERM으로 종료 코드 0 | PASS |
 | 워치독 | `hang` (timeout 1000ms) | timeout 감지, 같은 PID로 재부팅, `resets=1`, 채굴기 1개로 초기화 | PASS |
 | 반복 재시작 | `hang` 한 번 더 | `resets=2`, 이후 SIGTERM으로 정상 종료 | PASS |
 | 재시작 끔 | `-x` + `hang` | 종료 코드 2 | PASS |
@@ -324,21 +325,18 @@ make test            # 통합 테스트
 | `-n N` | firmware | 시작할 때 만들 채굴기 수 (기본 1) |
 | `-t MS` | firmware | 워치독 timeout, ms (기본 3000) |
 | `-x` | firmware | timeout 시 재시작하지 않고 종료 코드 2로 종료 |
-| `-l` | user_app | 원본 과제처럼 `kill()`로 SIGUSR1/SIGUSR2/SIGTERM 전송 (B 재현용) |
+| `-l` | user_app | `kill()`로 SIGUSR1/SIGUSR2/SIGTERM 전송 (4-B 재현용) |
 
 ### 디렉터리
 ```
 src/
   firmware.c     시그널 스레드, 이벤트 큐, 메인 루프, 워치독 timeout 처리
-  miner.c/.h     채굴기 스레드 원형 큐 (원본: 채굴기 과제)
+  miner.c/.h     채굴기 스레드 원형 큐
   watchdog.c/.h  소프트웨어 워치독
-  user_app.c     User App (원본: 과제7 User App)
+  user_app.c     User App
   common.h       시그널 프로토콜 (명령 번호)
-original/        제출했던 원본 과제 코드 (빌드 대상 아님)
-  miner.c                   채굴기 과제 최종 버전
-  miner_troubleshooting.c   채굴기 과제 실패 버전 (컴파일되지 않음, 4-A)
-  hw7_firmware.c            과제7 Firmware App
-  hw7_userapp.c             과제7 User App
+docs/troubleshooting/
+  miner_v1_failed.c  채굴기 관리 초기 버전 (4-A, 컴파일되지 않음, 빌드 대상 아님)
 tests/test_integration.sh  통합 테스트
 ```
 

@@ -1,3 +1,7 @@
+/*
+ * 채굴기 관리 초기 버전 (실패). README 4-A 참고.
+ * 이 파일은 그대로는 컴파일되지 않는다 (enqueue()의 value 미정의). 빌드 대상이 아니다.
+ */
 #include <stdio.h>      // 표준 입출력 라이브러리 포함
 #include <pthread.h>    // POSIX 스레드 라이브러리 포함
 #include <unistd.h>     // 유닉스 표준 기능 포함 (sleep 함수 사용을 위해 포함)

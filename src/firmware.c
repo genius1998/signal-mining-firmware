@@ -1,11 +1,7 @@
 /*
  * Firmware App: 시그널로 제어되는 채굴 펌웨어
  *
- * 원본
- *   - original/hw7_firmware.c : signal()로 SIGUSR1/SIGUSR2/SIGTERM 핸들러 등록, PID 출력
- *   - original/miner.c        : 채굴기 스레드 추가/삭제/조회 (stdin 명령)
- *
- * 통합 구조
+ * 구조
  *   [User App] --kill/sigqueue--> [시그널 스레드] --이벤트 큐--> [메인 루프] --> 채굴기 스레드 N개
  *                                                                  ^ kick
  *                                                            [워치독 스레드]
@@ -101,11 +97,11 @@ static sigset_t ctrl_set;
 static void build_sigset(sigset_t *set)
 {
     sigemptyset(set);
-    sigaddset(set, SIGUSR1);      /* 원본 과제의 "1" -> 채굴기 추가 */
-    sigaddset(set, SIGUSR2);      /* 원본 과제의 "2" -> 가장 오래된 채굴기 제거 */
-    sigaddset(set, SIGTERM);      /* 원본 과제의 "3" -> 종료 */
+    sigaddset(set, SIGUSR1);      /* 채굴기 추가 (kill로 보낼 때) */
+    sigaddset(set, SIGUSR2);      /* 가장 오래된 채굴기 제거 (kill로 보낼 때) */
+    sigaddset(set, SIGTERM);      /* 종료 */
     sigaddset(set, SIGINT);       /* Ctrl+C도 같은 정상 종료 경로로 */
-    sigaddset(set, SIG_CMD);      /* 통합 버전: sigqueue()로 명령 번호를 받는다 */
+    sigaddset(set, SIG_CMD);      /* sigqueue()로 명령 번호를 받는다 */
 }
 
 static const char *sig_name(int sig)
@@ -216,7 +212,7 @@ static void usage(const char *p)
 
 int main(int argc, char *argv[])
 {
-    int initial = 1;           /* 원본 채굴기 과제처럼 시작할 때 1개 생성 */
+    int initial = 1;           /* 시작할 때 채굴기 1개 생성 */
     int wdt_ms = 3000;
 
     clock_gettime(CLOCK_MONOTONIC, &t0);
@@ -243,7 +239,7 @@ int main(int argc, char *argv[])
     pthread_condattr_setclock(&ca, CLOCK_MONOTONIC);
     pthread_cond_init(&evq_cond, &ca);
 
-    printf("My PID : %d\n", (int)getpid());   /* 원본 과제와 같은 형식 */
+    printf("My PID : %d\n", (int)getpid());
     logf_("BOOT", "firmware start (wdt %d ms, reset count %d)", wdt_ms, g_reset_count);
 
     miner_init();
