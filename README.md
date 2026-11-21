@@ -124,19 +124,6 @@ size--;
 
 이 밖에도 `add()`는 `rear == SIZE` 검사보다 먼저 `pthread_create(&queue[rear], ...)`를 호출하기 때문에, 100개를 넘게 추가하면 배열 밖에 스레드 ID를 쓴다.
 
-해결은 순서를 바꾸는 것이었다. `queue[front]`를 먼저 cancel 하고, join으로 종료를 확인한 다음, 둘 다 성공했을 때만 dequeue 한다. 이 순서가 지금의 `miner_del()`이다.
-
-```c
-/* src/miner.c miner_del() */
-miner_t m = queue[front];
-if (pthread_cancel(m.tid) != 0 || pthread_join(m.tid, NULL) != 0) {
-    pthread_mutex_unlock(&qlock);
-    return -1;
-}
-front = (front + 1) % MINER_MAX;   /* 종료가 확인된 스레드만 큐에서 뺀다 */
-size--;
-```
-
 ---
 
 ## 5. 결과
