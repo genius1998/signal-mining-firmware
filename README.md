@@ -1,6 +1,6 @@
 # Signal 기반 채굴 펌웨어 제어 시스템
 
-User App이 보내는 시그널로 Firmware App 안의 채굴기 스레드를 추가·제거·조회하고, 워치독 스레드가 펌웨어 메인 루프의 멈춤을 감지해 재시작하는 Linux C 프로젝트다.
+User App에서 보내는 시그널(add/del/show 명령어)로 Firmware App안의 0.1초마다 coins++ 를 실행하는 스레드를 추가/제거/조회하고, 워치독 스레드가 펌웨어 메인 루프의 멈춤을 감지해 재시작하는 Linux C 프로젝트다.
 
 - Firmware App(`src/firmware.c`): 채굴기 스레드를 큐로 관리하고, 시그널을 명령으로 받아 처리한다. 시그널은 핸들러 대신 전용 스레드가 `sigwaitinfo()`로 받는다.
 - User App(`src/user_app.c`): 펌웨어 PID를 인자로 받아 사용자 입력을 시그널로 바꿔 보낸다. 명령은 실시간 시그널 하나에 명령 번호를 실어 `sigqueue()`로 보낸다.
