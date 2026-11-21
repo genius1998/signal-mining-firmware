@@ -122,12 +122,6 @@ front = (front + 1) % MINER_MAX;                            /* ④ 그다음에 
 size--;
 ```
 
----|---|
-| 채굴기 3개(0, 1, 2번) 뒤 `del` | 0번이 아니라 1번이 취소됨. 0번은 큐에서 빠진 채로 계속 채굴 |
-| 채굴기 1개 뒤 `del` | 취소 대상 `queue[1]`이 한 번도 쓰지 않은 칸(값 0) → `pthread_cancel(0)`에서 Segmentation fault |
-| 채굴기 2개 뒤 `del` 두 번 | 첫 `del`은 1번을 취소, 두 번째 `del`은 빈 칸 `queue[2]`를 취소하려다 Segmentation fault |
-| 채굴기 없이 `del` | `dequeue()`는 -1을 돌려주지만 `del()`이 무시하고 `queue[0]`(값 0)을 취소 → Segmentation fault |
-
 이 밖에도 `add()`는 `rear == SIZE` 검사보다 먼저 `pthread_create(&queue[rear], ...)`를 호출하기 때문에, 100개를 넘게 추가하면 배열 밖에 스레드 ID를 쓴다.
 
 해결은 순서를 바꾸는 것이었다. `queue[front]`를 먼저 cancel 하고, join으로 종료를 확인한 다음, 둘 다 성공했을 때만 dequeue 한다. 이 순서가 지금의 `miner_del()`이다.
