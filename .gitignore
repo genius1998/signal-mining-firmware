@@ -1,0 +1,4 @@
+firmware
+user_app
+*.o
+*.log
