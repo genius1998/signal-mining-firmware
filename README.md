@@ -1,6 +1,6 @@
 # Signal 기반 채굴 펌웨어 제어 시스템
 
-User App에서 보내는 시그널(add/del/show 명령어)로 Firmware App 안의 0.1초마다 coins++ 를 실행하는 스레드를 추가/제거/조회하고, 워치독 스레드가 펌웨어 메인 루프의 멈춤을 감지해 재시작하는 Linux C 프로젝트다.
+User App이 프로세스 간 통신(IPC) 수단인 시그널로 add/del/show 명령을 보내면, Firmware App이 0.1초마다 coins++ 를 실행하는 채굴기 스레드를 추가/제거/조회하고, 워치독 스레드가 펌웨어 메인 루프의 멈춤을 감지해 재시작하는 Linux C 프로젝트다.
 
 ![시연](docs/images/demo.gif)
 
